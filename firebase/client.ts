@@ -18,7 +18,6 @@ const firebaseConfig = {
   measurementId: "G-H76CCD0WGH"
 };
 
-console.log("firebase config   ",firebaseConfig)
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();

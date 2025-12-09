@@ -2,12 +2,6 @@ import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
-console.log("PROJECT ID:", process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
-console.log("CLIENT EMAIL:", process.env.NEXT_PUBLIC_FIREBASE_CLIENT_EMAIL);
-console.log(
-  "PRIVATE KEY defined?",
-  !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY
-);
 
 function initFirebaseAdmin() {
   const apps = getApps();
