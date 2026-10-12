@@ -1,0 +1,5 @@
+{
+  "name": "PrepSensei",
+  "description": "An AI-powered platform for preparing for mock interviews with instant practice and feedback.",
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

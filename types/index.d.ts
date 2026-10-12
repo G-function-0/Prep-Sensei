@@ -73,14 +73,15 @@ interface GetLatestInterviewsParams {
 
 interface SignInParams {
   email: string;
-  idToken: string;
+  password?: string;
+  idToken?: string;
 }
 
 interface SignUpParams {
-  uid: string;
+  uid?: string;
   name: string;
   email: string;
-  password: string;
+  password?: string;
 }
 
 type FormType = "sign-in" | "sign-up";

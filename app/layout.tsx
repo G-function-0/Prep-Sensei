@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
-import {Mona_Sans } from "next/font/google";
+import { Mona_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
+import { Suspense } from "react";
+import UrlErrorListener from "@/components/UrlErrorListener";
+import GlobalErrorHandler from "@/components/GlobalErrorHandler";
 
 const monaSans = Mona_Sans({
   variable: "--font-mona-sans",
@@ -20,11 +23,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body
-        className={`${monaSans.className} antialiased pattern`}
-      >
+      <body className={`${monaSans.className} antialiased pattern`}>
         {children}
-        <Toaster />
+        <Toaster richColors position="top-right" closeButton />
+        <GlobalErrorHandler />
+        <Suspense fallback={null}>
+          <UrlErrorListener />
+        </Suspense>
       </body>
     </html>
   );
