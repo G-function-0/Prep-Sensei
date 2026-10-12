@@ -3,6 +3,7 @@ import { executeWithGeminiKeyRotation } from "@/lib/gemini";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/auth.action";
 import { getRandomInterviewCover } from "@/lib/utils";
+import { saveInterview } from "@/lib/interviews-store";
 
 function generateTailoredQuestions(
   role: string,
@@ -153,7 +154,7 @@ Example format:
         ? questions
         : generateTailoredQuestions(role, level, type, techStackList, amount);
 
-    const interviewId = `interview_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const interviewId = crypto.randomUUID();
     const coverImage = getRandomInterviewCover();
 
     const newInterview = {
@@ -171,6 +172,9 @@ Example format:
       createdAt: new Date().toISOString(),
     };
 
+    // Save to shared memory store for instant cross-session accessibility
+    saveInterview(newInterview);
+
     // Attempt to persist to Supabase if configured
     if (
       process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -178,6 +182,7 @@ Example format:
     ) {
       try {
         await supabaseAdmin.from("interviews").insert({
+          id: newInterview.id,
           role: newInterview.role,
           type: newInterview.type,
           level: newInterview.level,
@@ -189,7 +194,7 @@ Example format:
           ...(userId && userId.includes("-") ? { user_id: userId } : {}),
         });
       } catch (dbErr) {
-        console.warn("Could not persist interview to Supabase (using in-memory):", dbErr);
+        console.warn("Could not persist interview to Supabase (using memory cache):", dbErr);
       }
     }
 

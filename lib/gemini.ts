@@ -63,13 +63,15 @@ export function createGenAIInstance(apiKey: string): GoogleGenAI {
   });
 }
 
-function isQuotaOrRateLimitError(error: unknown): boolean {
+function isQuotaOrKeyError(error: unknown): boolean {
   if (!error) return false;
   const msg = String(error).toLowerCase();
   const status = (error as { status?: number })?.status;
   return (
     status === 429 ||
     status === 503 ||
+    status === 401 ||
+    status === 403 ||
     msg.includes("429") ||
     msg.includes("quota") ||
     msg.includes("resourceexhausted") ||
@@ -77,7 +79,13 @@ function isQuotaOrRateLimitError(error: unknown): boolean {
     msg.includes("rate_limit") ||
     msg.includes("rate limit") ||
     msg.includes("too many requests") ||
-    msg.includes("overloaded")
+    msg.includes("overloaded") ||
+    msg.includes("api key") ||
+    msg.includes("api_key") ||
+    msg.includes("unauthenticated") ||
+    msg.includes("permission_denied") ||
+    msg.includes("econnreset") ||
+    msg.includes("etimedout")
   );
 }
 
@@ -100,12 +108,21 @@ export async function executeWithGeminiKeyRotation<T>(
   const totalKeys = pool.length;
   let lastError: unknown = null;
 
+  // If all keys are marked on cooldown, clear cooldowns so requests don't stall
+  const allOnCooldown = pool.every((_, idx) => {
+    const exp = keyCooldowns.get(idx);
+    return exp && exp > now;
+  });
+  if (allOnCooldown) {
+    keyCooldowns.clear();
+  }
+
   // Try each key in the pool, starting from current roundRobinIndex
   for (let attempt = 0; attempt < totalKeys; attempt++) {
     const currentIndex = (roundRobinIndex + attempt) % totalKeys;
     const cooldownExpires = keyCooldowns.get(currentIndex);
 
-    // Skip if on cooldown (unless it's the only key)
+    // Skip if on cooldown (unless it's the only key or all were on cooldown)
     if (cooldownExpires && cooldownExpires > now && totalKeys > 1) {
       continue;
     }
@@ -127,20 +144,19 @@ export async function executeWithGeminiKeyRotation<T>(
         error instanceof Error ? error.message : error
       );
 
-      if (isQuotaOrRateLimitError(error)) {
+      if (isQuotaOrKeyError(error)) {
         // Place on 60 second cooldown
         keyCooldowns.set(currentIndex, now + 60_000);
         console.warn(
-          `Key #${currentIndex + 1} quota reached. Automatically failing over to next key in pool...`
+          `Key #${currentIndex + 1} encountered quota or auth issue. Automatically failing over to next key in pool...`
         );
         // Continue loop to try next key immediately
       } else {
-        // If it's a non-retryable invalid argument or prompt error, throw immediately
-        const errMsg = String(error).toLowerCase();
-        if (
-          errMsg.includes("invalid_argument") ||
-          errMsg.includes("bad request")
-        ) {
+        // Check if there are other keys to try before giving up
+        if (attempt < totalKeys - 1) {
+          keyCooldowns.set(currentIndex, now + 30_000);
+          console.warn(`Key #${currentIndex + 1} error. Trying next key in pool...`);
+        } else {
           throw error;
         }
       }

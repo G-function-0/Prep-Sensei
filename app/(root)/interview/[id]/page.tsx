@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth.action";
 import { dummyInterviews } from "@/constants";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getInterview } from "@/lib/interviews-store";
 import VoiceInterviewSession from "@/components/VoiceInterviewSession";
 import { redirect } from "next/navigation";
 
@@ -18,8 +19,13 @@ export default async function InterviewSessionPage({ params }: Props) {
     redirect("/sign-in");
   }
 
-  // Find in dummy interviews
-  let interviewData = dummyInterviews.find((d) => d.id === id);
+  // 1. Check shared in-memory interviews store
+  let interviewData = getInterview(id);
+
+  // 2. Find in dummy interviews
+  if (!interviewData) {
+    interviewData = dummyInterviews.find((d) => d.id === id);
+  }
 
   // If not found in dummy, try querying Supabase
   if (

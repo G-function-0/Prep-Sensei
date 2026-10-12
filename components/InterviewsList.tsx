@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import InterviewCard from "./InterviewCard";
 import { PlusCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
@@ -26,8 +26,10 @@ export default function InterviewsList({
   initialInterviews = [],
   title = "Your Past Interviews",
 }: Props) {
-  const [interviews] = useState<InterviewItem[]>(() => {
-    if (typeof window === "undefined") return initialInterviews;
+  const [interviews, setInterviews] = useState<InterviewItem[]>(initialInterviews);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     try {
       const stored = localStorage.getItem("prepsensei_interviews");
       if (stored) {
@@ -36,13 +38,12 @@ export default function InterviewsList({
           initialInterviews.map((i) => i.id || i.interviewId)
         );
         const newItems = parsed.filter((i) => !existingIds.has(i.id));
-        return [...newItems, ...initialInterviews];
+        setInterviews([...newItems, ...initialInterviews]);
       }
     } catch {
       // Ignore
     }
-    return initialInterviews;
-  });
+  }, [initialInterviews]);
 
   return (
     <section className="flex flex-col gap-6 mt-8">
