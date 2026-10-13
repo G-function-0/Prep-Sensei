@@ -16,30 +16,11 @@ export async function POST(request: Request) {
 
     const isLastQuestion = questionIndex + 1 >= totalQuestions;
 
-    const prompt = `You are a warm, professional, and insightful technical interviewer conducting a live voice mock interview for a ${level} ${role} role.
-
-Context:
-- Current Question asked: "${currentQuestion}"
-- Candidate's Spoken Answer: "${candidateAnswer || "(The candidate paused or gave a brief response)"}"
-${
-  isLastQuestion
-    ? "- This was the final question of the interview."
-    : `- Next upcoming question: "${nextQuestion}"`
-}
-
-Task:
-Respond directly to the candidate as the interviewer.
-1. Briefly acknowledge their response (1-2 sentences). For example, comment positively on a good detail, ask for a quick clarification, or note their problem-solving mindset.
-2. ${
-  isLastQuestion
-    ? "Conclude the interview warmly, thank them for their time, and invite them to view their complete performance evaluation."
-    : `Transition smoothly into the next question: "${nextQuestion}".`
-}
-
-CRITICAL RULES FOR VOICE SPEECH SYNTHESIS:
-- Output PLAIN TEXT ONLY. No markdown, no asterisks, no bullets, no emojis.
-- Keep the entire response under 60 words so it sounds crisp and conversational when read aloud by the computer voice.
-- Sound encouraging, realistic, and professional.`;
+    const prompt = `Interviewer for ${level} ${role}.
+Q: "${currentQuestion}"
+A: "${candidateAnswer || "(No answer)"}"
+${isLastQuestion ? "Final Q: briefly acknowledge (1 sentence), thank them, and invite them to view final scorecard." : `Next Q: "${nextQuestion}". Briefly acknowledge A (1 sentence) and ask Next Q.`}
+Plain text only. Max 40 words. No markdown.`;
 
     const speechText = await executeWithGeminiKeyRotation(async (ai) => {
       const response = await ai.models.generateContent({

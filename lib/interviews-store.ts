@@ -24,6 +24,26 @@ if (!global.__prepsensei_interviews) {
 
 export const interviewsStore = global.__prepsensei_interviews;
 
+// In-memory persistent cache for feedback evaluations
+declare global {
+  // eslint-disable-next-line no-var
+  var __prepsensei_evaluations: Map<string, any> | undefined;
+}
+
+if (!global.__prepsensei_evaluations) {
+  global.__prepsensei_evaluations = new Map<string, any>();
+}
+
+export const evaluationsStore = global.__prepsensei_evaluations;
+
+export function saveEvaluation(interviewId: string, evaluation: any) {
+  evaluationsStore.set(interviewId, evaluation);
+}
+
+export function getEvaluation(interviewId: string): any | undefined {
+  return evaluationsStore.get(interviewId);
+}
+
 export function saveInterview(interview: StoredInterview) {
   interviewsStore.set(interview.id, interview);
 }
@@ -37,3 +57,4 @@ export function getAllInterviews(): StoredInterview[] {
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 }
+

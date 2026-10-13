@@ -61,3 +61,36 @@ Prep-Sensei is an AI-powered voice mock interview platform built with Next.js 16
    - Fixed missing generic type parameter on [components/FormField.tsx](file:///c:/Users/mirro/Desktop/Project%20Sundar/Madigineer/Prep-Sensei/components/FormField.tsx).
    - Executed `tsc --noEmit` and confirmed zero compiler/type errors.
 
+## 6. Diagnosis & Solutions for Reported Issues
+
+### Issue 1: Interviews & Evaluations Not Stored in History (Supabase vs App Analysis)
+- **Root Cause Identified**:
+  1. **Supabase Schema**: Supabase only had `users` and `interviews` tables defined; the `evaluations` table was completely missing.
+  2. **Supabase RLS Policies**: The table `interviews` enforced strict `auth.uid() = user_id`. During demo mode or anon client inserts, inserts failed with PostgreSQL error `42501 (new row violates row-level security policy for table "interviews")`.
+  3. **Backend Route Gap**: `app/api/interviews/evaluate/route.ts` generated evaluation JSON but did not save it to any persistent store or database, relying exclusively on client localStorage which did not hydrate backwards into the server endpoint.
+- **Fixes Applied**:
+  1. Updated [supabase/schema.sql](file:///c:/Users/mirro/Desktop/Project%20Sundar/Madigineer/Prep-Sensei/supabase/schema.sql) with the `public.evaluations` table schema and adjusted RLS policies allowing authenticated users, demo candidates, and service role clients to store and read evaluations.
+  2. Expanded [lib/interviews-store.ts](file:///c:/Users/mirro/Desktop/Project%20Sundar/Madigineer/Prep-Sensei/lib/interviews-store.ts) with `saveEvaluation` and `getEvaluation`.
+  3. Updated [app/api/interviews/evaluate/route.ts](file:///c:/Users/mirro/Desktop/Project%20Sundar/Madigineer/Prep-Sensei/app/api/interviews/evaluate/route.ts) to persist completed evaluations to `interviews-store` and Supabase.
+  4. Updated [app/api/interviews/[id]/route.ts](file:///c:/Users/mirro/Desktop/Project%20Sundar/Madigineer/Prep-Sensei/app/api/interviews/[id]/route.ts) to return both the interview configuration and its completed evaluation report.
+  5. Updated [InterviewCard.tsx](file:///c:/Users/mirro/Desktop/Project%20Sundar/Madigineer/Prep-Sensei/components/InterviewCard.tsx) and [FeedbackPage](file:///c:/Users/mirro/Desktop/Project%20Sundar/Madigineer/Prep-Sensei/app/(root)/interview/[id]/feedback/page.tsx) with automatic API fallback hydration if local storage was cleared or missing.
+
+### Issue 2: User Voice Transcription (STT) Not Working
+- **Root Cause Identified**:
+  1. `SpeechRecognition` was using a simple string loop over `event.results` which did not separate `isFinal` from interim transcripts, causing overwrites or empty strings on silence pauses.
+  2. The `onerror` event treated standard timeouts like `no-speech` as hard stops, failing to auto-restart the listening loop.
+  3. Continuous speech recognition in Chromium browsers ends automatically after brief silence pauses; `onend` had strict conditions that allowed the recognizer to terminate permanently.
+- **Fixes Applied in [VoiceInterviewSession.tsx](file:///c:/Users/mirro/Desktop/Project%20Sundar/Madigineer/Prep-Sensei/components/VoiceInterviewSession.tsx)**:
+  1. Implemented separate final transcript accumulator and interim result combiner (`finalTranscript` + `interimTranscript`).
+  2. Handled `no-speech` gracefully without stopping the session.
+  3. Added auto-restart resilience in `onend` so candidate voice transcription continues seamlessly throughout the question turn until the candidate submits or pauses manually.
+  4. Explicit error notifications for browser microphone permission denials (`not-allowed`, `service-not-allowed`).
+
+### Issue 3: Token Efficient Gemini Prompts
+- **Optimizations Applied**:
+  1. **Interview Generation** ([app/api/interviews/create/route.ts](file:///c:/Users/mirro/Desktop/Project%20Sundar/Madigineer/Prep-Sensei/app/api/interviews/create/route.ts)):
+     - Reduced prompt verbosity from ~160 tokens to compact format (~35 tokens), preserving exact JSON structure and question quality while cutting prompt tokens by >75%.
+  2. **Interviewer Turn Progression** ([app/api/interviews/turn/route.ts](file:///c:/Users/mirro/Desktop/Project%20Sundar/Madigineer/Prep-Sensei/app/api/interviews/turn/route.ts)):
+     - Streamlined conversational prompt and constrained response to under 40 plain words, reducing turn tokens by ~65%.
+  3. **Performance Evaluation** ([app/api/interviews/evaluate/route.ts](file:///c:/Users/mirro/Desktop/Project%20Sundar/Madigineer/Prep-Sensei/app/api/interviews/evaluate/route.ts)):
+     - Replaced verbose explanation paragraphs with compact JSON schema directives, trimming evaluation prompt input tokens by ~60%.

@@ -83,22 +83,9 @@ export async function POST(request: Request) {
       ? techstack.join(", ")
       : String(techstack);
 
-    const prompt = `You are a Principal Technical Interviewer conducting a realistic, voice-based interview.
-Generate ${amount} high-quality, spoken-friendly interview questions for the following candidate:
-- Job Role: ${role}
-- Experience Level: ${level}
-- Interview Style/Type: ${type} (e.g. Technical, Behavioral, System Design, or Mixed)
-- Core Tech Stack: ${techStackList || "General Software Engineering"}
-${focusAreas ? `- Special Focus Areas: ${focusAreas}` : ""}
-
-Rules for voice questions:
-1. Make questions conversational and clear when spoken aloud via Text-to-Speech.
-2. Avoid bullet points, code blocks, slashes (/), asterisks, or complex markdown that sounds unnatural when read aloud.
-3. Start with an introductory warm-up question, move into core technical or scenario questions, and include one problem-solving challenge.
-4. Return ONLY a valid JSON array of strings containing the questions.
-
-Example format:
-["Can you tell me about a recent project you built using React and how you managed application state?", "How do you handle error boundaries and logging in production Next.js apps?"]`;
+    const prompt = `Role:${role}|Lvl:${level}|Type:${type}|Stack:${techStackList || "General"}${focusAreas ? `|Focus:${focusAreas}` : ""}
+Task:Return JSON array of ${amount} concise conversational questions for speech-to-text interview. No markdown or bullets.
+Example:["Can you describe your experience with React?","How do you handle production bottlenecks?"]`;
 
     let questions: string[] = [];
 

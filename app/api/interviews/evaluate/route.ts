@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { executeWithGeminiKeyRotation } from "@/lib/gemini";
 import { getCurrentUser } from "@/lib/auth.action";
+import { saveEvaluation } from "@/lib/interviews-store";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   try {
@@ -24,44 +26,24 @@ export async function POST(request: Request) {
       )
       .join("\n\n");
 
-    const prompt = `You are a Senior Bar Raiser & Hiring Evaluator conducting a thorough performance assessment of a candidate who completed a mock interview.
-
-Interview Context:
-- Target Role: ${role}
-- Experience Level: ${level}
-- Type: ${type}
-- Tech Stack: ${Array.isArray(techstack) ? techstack.join(", ") : techstack}
-
-Candidate Transcript:
+    const prompt = `Assess mock interview candidate for ${level} ${role} (Stack: ${Array.isArray(techstack) ? techstack.join(", ") : techstack}).
+Transcript:
 ${transcriptFormatted}
 
-Evaluate the candidate's answers objectively, considering their target seniority level (${level}).
-Return your evaluation formatted strictly as JSON with this schema:
+Respond with strict JSON only:
 {
   "totalScore": 85,
   "categoryScores": [
-    { "name": "Technical Depth", "score": 85, "comment": "Demonstrated solid understanding of core concepts." },
-    { "name": "Communication & Clarity", "score": 88, "comment": "Structured answers logically and explained trade-offs clearly." },
-    { "name": "Problem Solving", "score": 82, "comment": "Broke down complex scenarios effectively." },
-    { "name": "Practical Relevance", "score": 84, "comment": "Gave concrete real-world examples." }
+    { "name": "Technical Depth", "score": 85, "comment": "Concise summary." },
+    { "name": "Communication & Clarity", "score": 85, "comment": "Concise summary." },
+    { "name": "Problem Solving", "score": 85, "comment": "Concise summary." },
+    { "name": "Practical Relevance", "score": 85, "comment": "Concise summary." }
   ],
-  "strengths": [
-    "Strong command of foundational architectural principles.",
-    "Clear, structured communication without rambling.",
-    "Proactive consideration of edge cases and error handling."
-  ],
-  "areasForImprovement": [
-    "Could dive deeper into specific performance trade-offs.",
-    "Provide more quantitative metrics from past project experience."
-  ],
-  "finalAssessment": "Strong performance that meets expectations for a ${level} ${role}. The candidate exhibited clear communication and domain competency throughout the discussion.",
+  "strengths": ["Item 1", "Item 2"],
+  "areasForImprovement": ["Item 1", "Item 2"],
+  "finalAssessment": "Summary assessment under 40 words.",
   "questionReviews": [
-    {
-      "question": "Q1 text",
-      "score": 85,
-      "feedback": "Strong answer covering fundamental principles.",
-      "idealAnswer": "Key points to cover would be..."
-    }
+    { "question": "Q text", "score": 85, "feedback": "Brief feedback", "idealAnswer": "Key bullet points" }
   ]
 }`;
 
@@ -171,6 +153,38 @@ Return your evaluation formatted strictly as JSON with this schema:
       questionReviews: feedback.questionReviews || [],
       createdAt: new Date().toISOString(),
     };
+
+    // 1. Save to in-memory store
+    saveEvaluation(interviewId, fullFeedback);
+
+    // 2. Persist to Supabase if configured
+    if (
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      !process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder")
+    ) {
+      try {
+        const isUUID =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            interviewId
+          );
+        await supabaseAdmin.from("evaluations").upsert({
+          id: fullFeedback.id,
+          interview_id: isUUID ? interviewId : null,
+          role: fullFeedback.role,
+          level: fullFeedback.level,
+          total_score: fullFeedback.totalScore,
+          category_scores: fullFeedback.categoryScores,
+          strengths: fullFeedback.strengths,
+          areas_for_improvement: fullFeedback.areasForImprovement,
+          final_assessment: fullFeedback.finalAssessment,
+          question_reviews: fullFeedback.questionReviews,
+          created_at: fullFeedback.createdAt,
+          ...(userId && userId.includes("-") ? { user_id: userId } : {}),
+        });
+      } catch (dbErr) {
+        console.warn("Could not persist evaluation to Supabase (using memory/local store):", dbErr);
+      }
+    }
 
     return NextResponse.json({
       success: true,

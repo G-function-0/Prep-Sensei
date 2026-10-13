@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Award,
@@ -114,15 +114,38 @@ export default function FeedbackPage({
     createdAt: new Date().toISOString(),
   };
 
-  const [feedback] = useState<FeedbackData>(() => {
-    if (typeof window === "undefined") return fallbackData;
+  const [feedback, setFeedback] = useState<FeedbackData>(fallbackData);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     try {
       const stored = localStorage.getItem(`prepsensei_feedback_${id}`);
-      return stored ? JSON.parse(stored) : fallbackData;
+      if (stored) {
+        setFeedback(JSON.parse(stored));
+        return;
+      }
     } catch {
-      return fallbackData;
+      // Ignore
     }
-  });
+
+    // Try fetching from server API if not in local storage
+    fetch(`/api/interviews/${id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.evaluation) {
+          setFeedback(data.evaluation);
+          try {
+            localStorage.setItem(
+              `prepsensei_feedback_${id}`,
+              JSON.stringify(data.evaluation)
+            );
+          } catch {
+            // Ignore
+          }
+        }
+      })
+      .catch(() => {});
+  }, [id]);
 
   if (!feedback) {
     return (

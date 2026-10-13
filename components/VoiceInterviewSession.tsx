@@ -202,6 +202,8 @@ export default function VoiceInterviewSession({
     window.speechSynthesis.speak(utterance);
   }, []);
 
+  const finalTranscriptRef = useRef<string>("");
+
   // Initialize Speech Recognition (STT)
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -233,32 +235,51 @@ export default function VoiceInterviewSession({
       };
 
       recognition.onresult = (event: SpeechRecognitionEventLike) => {
-        let transcript = "";
+        let interimTranscript = "";
+        let finalTranscript = "";
+
         for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript + " ";
+          const result = event.results[i];
+          const text = result[0]?.transcript || "";
+          if (result.isFinal) {
+            finalTranscript += text + " ";
+          } else {
+            interimTranscript += text + " ";
+          }
         }
-        setCandidateAnswer(transcript.trim());
+
+        const combined = (finalTranscript + interimTranscript).trim();
+        if (combined) {
+          finalTranscriptRef.current = combined;
+          setCandidateAnswer(combined);
+        }
       };
 
       recognition.onerror = (event: { error: string }) => {
         console.warn("Speech recognition notice:", event.error);
-        if (event.error === "not-allowed") {
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
           toast.error(
-            "Microphone permission blocked. You can still type your answers directly."
+            "Microphone permission blocked. Please allow mic access in your browser address bar.",
+            { id: "mic-perm-err" }
           );
           setIsListening(false);
           isListeningRef.current = false;
+        } else if (event.error === "no-speech") {
+          // Normal timeout when candidate pauses, do not crash or show error
+        } else if (event.error === "aborted") {
+          // Handled manually
+        } else {
+          console.warn("Speech recognition error:", event.error);
         }
       };
 
       recognition.onend = () => {
-        // Auto-restart if we are still expected to be listening and not AI speaking
-        if (isListeningRef.current && !ttsMutedRef.current) {
+        // Automatically restart listening if still in active listening state and AI is not speaking
+        if (isListeningRef.current && hasStartedRef.current) {
           try {
             recognition.start();
           } catch {
-            setIsListening(false);
-            isListeningRef.current = false;
+            // Already started or restarting
           }
         } else {
           setIsListening(false);
@@ -274,7 +295,7 @@ export default function VoiceInterviewSession({
     return () => {
       if (recognitionRef.current) {
         try {
-          recognitionRef.current.stop();
+          recognitionRef.current.abort();
         } catch {
           // Ignore
         }
@@ -479,6 +500,7 @@ export default function VoiceInterviewSession({
       setInterviewerMessage(feedbackText);
 
       // Reset candidate answer for the next question
+      finalTranscriptRef.current = "";
       setCandidateAnswer("");
 
       if (isLast) {

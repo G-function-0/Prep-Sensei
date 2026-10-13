@@ -28,37 +28,72 @@ create table if not exists public.interviews (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 4. Enable Row Level Security (RLS)
+-- 4. Create public.evaluations table
+create table if not exists public.evaluations (
+  id text primary key,
+  interview_id uuid references public.interviews(id) on delete cascade,
+  user_id uuid references auth.users on delete cascade,
+  role text not null,
+  level text not null,
+  total_score numeric default 0,
+  category_scores jsonb default '[]'::jsonb,
+  strengths text[] default '{}',
+  areas_for_improvement text[] default '{}',
+  final_assessment text,
+  question_reviews jsonb default '[]'::jsonb,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 5. Enable Row Level Security (RLS)
 alter table public.users enable row level security;
 alter table public.interviews enable row level security;
+alter table public.evaluations enable row level security;
 
 -- Policies for public.users
+drop policy if exists "Users can view their own profile" on public.users;
 create policy "Users can view their own profile"
   on public.users for select
   using (auth.uid() = id);
 
+drop policy if exists "Users can update their own profile" on public.users;
 create policy "Users can update their own profile"
   on public.users for update
   using (auth.uid() = id);
 
+drop policy if exists "Users can insert their own profile" on public.users;
 create policy "Users can insert their own profile"
   on public.users for insert
   with check (auth.uid() = id);
 
 -- Policies for public.interviews
-create policy "Users can view their own interviews"
+-- Allow users to view their own interviews or public templates / demo interviews (user_id is null)
+drop policy if exists "Users can view interviews" on public.interviews;
+create policy "Users can view interviews"
   on public.interviews for select
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id or user_id is null);
 
-create policy "Users can insert their own interviews"
+drop policy if exists "Users can insert interviews" on public.interviews;
+create policy "Users can insert interviews"
   on public.interviews for insert
-  with check (auth.uid() = user_id);
+  with check (auth.uid() = user_id or auth.uid() is not null or user_id is null);
 
+drop policy if exists "Users can update their own interviews" on public.interviews;
 create policy "Users can update their own interviews"
   on public.interviews for update
   using (auth.uid() = user_id);
 
--- 5. Auto-sync trigger from auth.users (Google OAuth & Email signup)
+-- Policies for public.evaluations
+drop policy if exists "Users can view evaluations" on public.evaluations;
+create policy "Users can view evaluations"
+  on public.evaluations for select
+  using (auth.uid() = user_id or user_id is null);
+
+drop policy if exists "Users can insert evaluations" on public.evaluations;
+create policy "Users can insert evaluations"
+  on public.evaluations for insert
+  with check (auth.uid() = user_id or auth.uid() is not null or user_id is null);
+
+-- 6. Auto-sync trigger from auth.users (Google OAuth & Email signup)
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin

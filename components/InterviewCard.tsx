@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Button } from "./ui/button";
 import dayjs from "dayjs";
@@ -23,7 +23,7 @@ const InterviewCard = ({
   coverImage,
 }: Props) => {
   const actualId = interviewId || id || "1";
-  const [feedback] = useState<Feedback | null>(() => {
+  const [feedback, setFeedback] = useState<Feedback | null>(() => {
     if (typeof window === "undefined") return null;
     try {
       const stored = localStorage.getItem(`prepsensei_feedback_${actualId}`);
@@ -32,6 +32,19 @@ const InterviewCard = ({
       return null;
     }
   });
+
+  // If not found in localStorage, fetch from API
+  useEffect(() => {
+    if (feedback || !actualId) return;
+    fetch(`/api/interviews/${actualId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.evaluation) {
+          setFeedback(data.evaluation);
+        }
+      })
+      .catch(() => {});
+  }, [actualId, feedback]);
 
   const normalizedType = /mix/gi.test(type || "") ? "Mixed" : type || "Technical";
 
